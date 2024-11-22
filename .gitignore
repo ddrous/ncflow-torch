@@ -1,0 +1,31 @@
+*.pyc
+*.tmp
+\.idea
+\.pytest_cache
+.vscode
+.mypy_cache
+# *.npz
+.cache
+.DS_Store
+pintode.egg-info/*
+*vtk
+quadqs_statistics.json
+
+nodax.egg-info
+nodax.egg-info/*
+nodax/__pycache__/*
+
+# For tensorboard logs
+*v2
+*ubyte.gz
+*json.gz
+*.pb
+
+# For slurm out files
+*.out
+
+## Pytorch tmp savings
+*-ubyte
+
+# ## Don't save equinox models
+# *.eqx
