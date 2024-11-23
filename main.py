@@ -73,7 +73,7 @@ if not os.path.exists(adapt_folder):
 #%%
 
 if train == True:
-    # Run the dataset script to generate the data: meta-training and the corresponding evaluation
+    # Run the dataset script to generate the data: meta-training and the corresponding evaluation (or download it from Gen-Dynamics)
     os.system(f'python dataset.py --split=train --savepath="{run_folder}" --seed="{seed}"')
     os.system(f'python dataset.py --split=test --savepath="{run_folder}" --seed="{seed*2}"')
 
@@ -275,7 +275,7 @@ visualtester.visualize(test_dataloader, int_cutoff=1.0, save_path=savefigdir);
 
 #%%
 
-## Create a new dataset for adaptation and another one to test the model on it
+## Create a new dataset for adaptation and another one to test the model on it (or download it from Gen-Dynamics)
 if adapt_test and not adapt_restore:
     os.system(f'python dataset.py --split=adapt --savepath="{adapt_folder}" --seed="{seed*3}"');
     os.system(f'python dataset.py --split=adapt_test --savepath="{adapt_folder}" --seed="{seed*3}"');
