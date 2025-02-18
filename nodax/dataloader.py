@@ -32,8 +32,6 @@ class DataLoader:
         self.nb_steps_per_traj = datashape[2]
         self.data_size = datashape[3]
 
-        # print("Dataset shape:", datashape)
-
         self.int_cutoff = int(int_cutoff*self.nb_steps_per_traj)    ## integration cutoff
 
         if batch_size < 0 or batch_size > self.nb_trajs_per_env:
@@ -42,13 +40,7 @@ class DataLoader:
         else:
             self.batch_size = batch_size
 
-        self.adaptation = adaptation    ## Is this a dataset for adaptation ?
-
-    # def __iter__(self):     ## TODO! Randomise this function
-    #     nb_batches = self.nb_trajs_per_env // self.batch_size
-    #     for batch_id in range(nb_batches):
-    #         traj_start, traj_end = batch_id*self.batch_size, (batch_id+1)*self.batch_size
-    #         yield self.dataset[:, traj_start:traj_end, :self.int_cutoff, :], self.t_eval[:self.int_cutoff]
+        self.adaptation = adaptation    ## True if this a dataset for adaptation ?
 
     def __iter__(self):
         nb_batches = self.nb_trajs_per_env // self.batch_size
@@ -56,8 +48,7 @@ class DataLoader:
         if self.shuffle:
             key = get_new_key(self.key)
 
-            ## The strategy below eleviates encountering the same (env1, traj1) - (env2, traj2) pair across all batches
-
+            ## We don't want to encounter the same (env1, traj1) - (env2, traj2) pair across all batches
             ## 1) Extract a subset of environments
             e_start = jax.random.randint(key, shape=(1,), minval=0, maxval=self.nb_envs)[0]
             length = jax.random.randint(key, shape=(1,), minval=e_start+1, maxval=self.nb_envs+1)[0] - e_start
@@ -67,19 +58,10 @@ class DataLoader:
             ## 3) Shuffle the resulting dataset again accross dimension 1 (for extra randomness)
             perm_dataset = jax.random.permutation(key, perm_dataset, axis=1)
 
-            # ## 1) Extract a subset of environments
-            # e_start = jax.random.randint(key, shape=(1,), minval=0, maxval=self.nb_envs)[0]
-            # length = jax.random.randint(key, shape=(1,), minval=e_start+1, maxval=self.nb_envs+1)[0] - e_start
-            # ## 2) Shuffle that subset accross dimension 1 (trajs), then put them back at the same place
-            # perm_env = jax.random.permutation(key, perm_dataset[e_start:e_start+length, ...], axis=1)
-            # perm_dataset = self.dataset.at[e_start:e_start+length, ...].set(perm_env)
-            # ## 3) Shuffle the resulting dataset again accross dimension 1 (for extra randomness)
-            # perm_dataset = jax.random.permutation(key, perm_dataset, axis=1)
-
         else:
             perm_dataset = self.dataset
 
-        ## We are now ready to iterate over the dataset
+        ## We can now iterate over the dataset
         for batch_id in range(nb_batches):
             traj_start, traj_end = batch_id*self.batch_size, (batch_id+1)*self.batch_size
             yield perm_dataset[:, traj_start:traj_end, :self.int_cutoff, :], self.t_eval[:self.int_cutoff]
