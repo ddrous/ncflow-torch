@@ -48,6 +48,8 @@ class DataLoader:
         if self.shuffle:
             key = get_new_key(self.key)
 
+            ### Do this in TORCH
+
             ## We don't want to encounter the same (env1, traj1) - (env2, traj2) pair across all batches
             ## 1) Extract a subset of environments
             e_start = jax.random.randint(key, shape=(1,), minval=0, maxval=self.nb_envs)[0]
