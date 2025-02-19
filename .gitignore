@@ -11,9 +11,9 @@ pintode.egg-info/*
 *vtk
 quadqs_statistics.json
 
-nodax.egg-info
-nodax.egg-info/*
-nodax/__pycache__/*
+ncf_torch.egg-info
+ncf_torch.egg-info/*
+ncf_torch/__pycache__/*
 
 # For tensorboard logs
 *v2
@@ -27,5 +27,5 @@ nodax/__pycache__/*
 ## Pytorch tmp savings
 *-ubyte
 
-# ## Don't save equinox models
-# *.eqx
+# ## Don't save torch models
+# *.pth
