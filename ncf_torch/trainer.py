@@ -22,6 +22,14 @@ class Trainer:
 
         self.val_losses = []
 
+    def toggle_grad(self, module_name, requires_grad):
+        if module_name == "contexts":
+            for param in self.learner.contexts.parameters():
+                param.requires_grad = requires_grad
+
+        elif module_name == "node":
+            for param in self.learner.neuralode.parameters():
+                param.requires_grad = requires_grad
 
     def train(self, 
               nb_epochs, 
@@ -60,6 +68,13 @@ class Trainer:
 
         val_losses = []
 
+        ## freeze params for contexts model
+        # for param in contexts.parameters():
+        #     param.requires_grad = False
+
+        # for param in node.parameters():
+        #     param.requires_grad = False
+
         for epoch in range(nb_epochs):
             nb_batches = 0
             loss_sum = torch.zeros(1)
@@ -67,14 +82,41 @@ class Trainer:
 
             for i, batch in enumerate(self.dataloader):
 
+                # self.opt_node.zero_grad()
+                # self.opt_ctx.zero_grad()
+
+                # loss, (nb_steps_, term1, term2) = loss_fn(node, contexts, batch)
+                # loss.backward()
+
+                # self.opt_node.step()
+                # self.opt_ctx.step()
+
+                ####### Optimise the shared neural ODE weights #######
+                self.toggle_grad("contexts", False)
+
+                # print(node.training)
+                # print('====>',node.vectorfield.neuralnet.layers_context[0].weight.requires_grad)
                 self.opt_node.zero_grad()
-                self.opt_ctx.zero_grad()
-
-                loss, (nb_steps_, term1, term2) = loss_fn(node, contexts, batch)
+                loss, (nb_steps_, term1, term2) = loss_fn(batch, training=True)
                 loss.backward()
-
+                ## Check if contexts requires grad
+                # print("Contexts requires grad:", contexts.params.requires_grad)
                 self.opt_node.step()
+
+                self.toggle_grad("contexts", True)
+
+
+                ###### Optimise the context parameters #######
+
+                self.toggle_grad("node", False)
+
+                self.opt_ctx.zero_grad()
+                loss, (nb_steps_, term1, term2) = loss_fn(batch, training=True)
+                loss.backward()
                 self.opt_ctx.step()
+
+                self.toggle_grad("node", True)
+
 
                 loss_sum += torch.Tensor([loss])
                 nb_steps_sum += nb_steps_
@@ -302,14 +344,18 @@ class Trainer:
         
         ## Disable the Taylor expansion
         node.vectorfield.taylor_order = 0
+        ## Disable backpropagation for the shared weights
+        self.toggle_grad("node", False)
 
         contexts = ContextParams(data_loader.nb_envs, self.learner.contexts.params.shape[1])
         contexts.to(data_loader.device)
 
-        opt = optim.Adam(contexts.parameters(), lr=self.learning_rates[1])
         self.learner.init_ctx_params_adapt = contexts.params.clone().detach()
         self.losses_adapt = []
         self.nb_steps_adapt = []
+
+        self.learner.contexts_adapt = contexts
+        opt = optim.Adam(self.learner.contexts_adapt.parameters(), lr=self.learning_rates[1])
 
         nb_train_steps_per_epoch = int(np.ceil(data_loader.nb_trajs_per_env / data_loader.batch_size))
         total_steps = nb_epochs * nb_train_steps_per_epoch
@@ -333,7 +379,7 @@ class Trainer:
             for i, batch in enumerate(data_loader):
 
                 opt.zero_grad()
-                loss, (nb_steps_, term1, term2) = loss_fn(node, contexts, batch)
+                loss, (nb_steps_, term1, term2) = loss_fn(batch, training=False)
                 loss.backward()
                 opt.step()
 
@@ -348,7 +394,7 @@ class Trainer:
             nb_steps.append(nb_steps_eph)
 
             if epoch%print_error_every==0 or epoch<=3 or epoch==nb_epochs-1:
-                print(f"    Epoch: {epoch:-5d}     LossContext: {loss_epoch[0]:-.8f}", flush=True)
+                print(f"    Epoch: {epoch:-5d}     Loss: {loss_epoch[0]:-.8f}    ContextsNorm: {torch.mean(term2):-.8f}", flush=True)
 
         wall_time = time.time() - start_time
         time_in_hmsecs = seconds_to_hours(wall_time)

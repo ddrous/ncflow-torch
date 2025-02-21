@@ -29,3 +29,9 @@ ncf_torch/__pycache__/*
 
 # ## Don't save torch models
 # *.pth
+
+# Ignore all .log files
+*.log
+
+# Ignore all runs/ directories
+*runs/

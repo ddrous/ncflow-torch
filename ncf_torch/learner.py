@@ -9,8 +9,45 @@ class Learner:
         self.contexts = contexts
 
         self.init_ctx_params = self.contexts.params.clone().detach()
+        self.contexts_adapt = None
 
-        self.loss_fn = lambda model, contexts, batch: loss_fn(model, contexts, batch, loss_fn_env)
+        # self.loss_fn = lambda model, contexts, batch: loss_fn(model, contexts, batch, loss_fn_env)
+        self.loss_fn_env = loss_fn_env
+
+
+    def loss_fn(self, batch, training=True):
+        Xs, t_eval = batch
+
+        if training:
+            contexts = self.contexts
+        else:   ## Adaptation
+            contexts = self.contexts_adapt
+
+        all_loss = []
+        all_nb_steps = []
+        all_term1 = []
+        all_term2 = []
+        for e in range(Xs.shape[0]):
+            loss, (nb_steps, term1, term2) = self.loss_fn_env(self.neuralode, Xs[e, :, :, :], t_eval, contexts.params[e], contexts.params)
+            # loss, (nb_steps, term1, term2) = self.loss_fn_env(self.neuralode, Xs[e, :, :, :], t_eval, contexts[e], contexts)
+            all_loss.append(loss)
+            all_nb_steps.append(nb_steps)
+            all_term1.append(term1)
+            all_term2.append(term2)
+
+        all_loss = torch.stack(all_loss)
+        all_nb_steps = torch.stack(all_nb_steps)
+        all_term1 = torch.stack(all_term1)
+        all_term2 = torch.stack(all_term2)
+
+        recons = torch.mean(all_loss, dim=0)
+        regul = 0.
+
+        total_loss = recons + regul
+
+        return total_loss, (torch.sum(all_nb_steps), all_term1, all_term2)
+
+
 
     def save_learner(self, path):
         assert path[-1] == "/", "ERROR: Invalidn parovided. The path must end with /"
@@ -65,31 +102,4 @@ class NeuralODE(nn.Module):
         sol = sol.permute(1, 0, 2)
 
         return sol, self.nfe
-
-
-def loss_fn(model, contexts, batch, loss_fn_env):
-    Xs, t_eval = batch
-
-    all_loss = []
-    all_nb_steps = []
-    all_term1 = []
-    all_term2 = []
-    for e in range(Xs.shape[0]):
-        loss, (nb_steps, term1, term2) = loss_fn_env(model, Xs[e, :, :, :], t_eval, contexts.params[e], contexts.params)
-        all_loss.append(loss)
-        all_nb_steps.append(nb_steps)
-        all_term1.append(term1)
-        all_term2.append(term2)
-
-    all_loss = torch.stack(all_loss)
-    all_nb_steps = torch.stack(all_nb_steps)
-    all_term1 = torch.stack(all_term1)
-    all_term2 = torch.stack(all_term2)
-
-    recons = torch.mean(all_loss, dim=0)
-    regul = 0.
-
-    total_loss = recons + regul
-
-    return total_loss, (torch.sum(all_nb_steps), all_term1, all_term2)
 

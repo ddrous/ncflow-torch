@@ -1,6 +1,6 @@
 #%%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 
 ## Import all the necessary libraries
 from ncf_torch import *
@@ -11,25 +11,25 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 
 ## NCF main hyperparameters ##
-context_pool_size = 3               ## Number of neighboring contexts j to use for a flow in env e
 context_size = 2                 ## Size of the context vector
-taylor_order = 2
+taylor_order = 0
+context_pool_size = 1               ## Number of neighboring contexts j to use for a flow in env e
 
 ## General training hyperparameters ##
 print_error_every = 10              ## Print the error every n epochs
-ivp_args = {"rtol":1e-3, "atol":1e-6, "method":"dopri5"} ## Arguments for the integrator
+ivp_args = {"rtol":1e-3, "atol":1e-6, "method":"rk4"} ## Arguments for the integrator
 learning_rates = (1e-3, 1e-3)      ## Learning rates for the weights and the contexts
-nb_epochs = 12                       ## Number of epochs
+nb_epochs = 2000                       ## Number of epochs
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 run_folder = None                   ## Folder to save the results of the run
 train = True                       ## Train the model, or load a pre-trained model
 
 ## Adaptation hyperparameters ##
-adapt_test = True                   ## Test the model on an adaptation dataset
+adapt_test = True                   ## Test the model on an adaptation datase t
 adapt_restore = False               ## Restore a trained adaptation model
 
-nb_epochs_adapt = 2              ## Number of epochs to adapt
+nb_epochs_adapt = 2000              ## Number of epochs to adapt
 
 
 #%%
@@ -41,9 +41,9 @@ if train == True:
         os.mkdir('./runs')
 
     # Make a new folder inside for the current run
-    # run_folder = './runs/'+time.strftime("%d%m%Y-%H%M%S")+'/'
-    # os.mkdir(run_folder)
-    run_folder = './runs/19022025-103059-Test/'
+    run_folder = './runs/'+time.strftime("%Y%m%d-%H%M%S")+'/'
+    os.mkdir(run_folder)
+    # run_folder = './runs/19022025-103059-Test/'
     print("Run folder created successfuly:", run_folder)
 
     # Save this main and the dataset gneration scripts in that folder
@@ -92,7 +92,8 @@ class NeuralNet(nn.Module):
     def __init__(self, data_size, int_size, context_size):
         super(NeuralNet, self).__init__()
         self.layers_context = nn.ModuleList()
-        mid_size = (context_size + int_size)//2
+        # mid_size = (context_size + int_size)//2 if context_size<=2 else context_size//4
+        mid_size = int_size
         self.layers_context.append(nn.Linear(context_size, mid_size))
         self.layers_context.append(nn.Linear(mid_size, int_size))
         self.layers_context.append(nn.Linear(int_size, int_size))
@@ -108,8 +109,13 @@ class NeuralNet(nn.Module):
         self.layers_shared.append(nn.Linear(int_size, int_size))
         self.layers_shared.append(nn.Linear(int_size, data_size))
 
+    def toggle_grad(self, true_or_false):
+        for layer in self.layers_shared + self.layers_data + self.layers_context:
+            for param in layer.parameters():
+                param.requires_grad = true_or_false
 
-    def __call__(self, t, y, ctx):
+    def forward(self, t, y, ctx):
+        # print('==>',self.layers_context[0].weight.requires_grad)
         for i, layer in enumerate(self.layers_context):
             ctx = layer(ctx)
             if i != len(self.layers_context)-1:
@@ -130,6 +136,29 @@ class NeuralNet(nn.Module):
                 y = F.softplus(y)
 
         return y
+
+    # def forward_nograd(self, t, y, ctx):
+    #     # print('==>',self.layers_context[0].weight.requires_grad)
+    #     for i, layer in enumerate(self.layers_context):
+    #         ctx = layer(ctx)
+    #         if i != len(self.layers_context)-1:
+    #             ctx = F.softplus(ctx)
+
+    #     for i, layer in enumerate(self.layers_data):
+    #         y = layer(y)
+    #         if i != len(self.layers_data)-1:
+    #             y = F.softplus(y)
+
+    #     ctx = torch.unsqueeze(ctx, 0)
+    #     ctx = torch.broadcast_to(ctx, y.shape)
+
+    #     y = torch.concatenate([y, ctx], dim=1)
+    #     for i, layer in enumerate(self.layers_shared):
+    #         y = layer(y)
+    #         if i != len(self.layers_shared)-1:
+    #             y = F.softplus(y)
+
+    #     return y
 
 
 ### Define the Taylor expantion about the context vector ###
@@ -192,12 +221,17 @@ def loss_fn_env(model, trajs, t_eval, ctx, all_ctx_s):
     trajs_hat = torch.stack(trajs_hat)
     nb_steps_mean = torch.sum(torch.Tensor(nb_steps))/ctx_s.shape[0]
 
-    term1 = torch.mean((trajs[None,...]-trajs_hat)**2)      ## reconstruction
+    # term1 = torch.mean((trajs[None,...]-trajs_hat)**2)      ## reconstruction
+
+    trajs = torch.broadcast_to(trajs[None,...], trajs_hat.shape)
+    term1 = F.mse_loss(trajs_hat, trajs)      ## reconstruction
+
     term2 = torch.mean(torch.abs(ctx))                      ## context regularisation
     # term3 = params_norm_squared(model)                      ## weight regularisation
 
     # loss_val = term1 + 1e-3*term2 + 1e-3*term3
-    loss_val = term1 + 1e-3*term2
+    # loss_val = term1 + 1e-3*term2
+    loss_val = term1
 
     return loss_val, (nb_steps_mean, term1, term2)   ## The neural ODE integrator returns the number of steps taken, which are handy for analysis
 
@@ -233,8 +267,9 @@ else:
 ## Test and visualise the results on a test dataloader (same as the validation dataset)
 visualtester = VisualTester(trainer)
 
-ind_crit = visualtester.test(val_dataloader)
+ind_crit, ind_crit_all = visualtester.test(val_dataloader)
 visualtester.visualize(val_dataloader, save_path=run_folder+"results_in_domain.png");
+print("## Per-Environment InD score:", ind_crit_all)
 
 
 #%%
@@ -254,6 +289,15 @@ if adapt_test:
         trainer.restore_adapted_trainer(path=adapt_folder, data_loader=adapt_dataloader)
 
     ## Evaluate the model on the adaptation test dataset
-    ood_crit, _ = visualtester.test(adapt_dataloader_test)
+    ood_crit, ood_crit_all = visualtester.test(adapt_dataloader_test)
+    print("## Per-Environment OOD score:", ood_crit_all, flush=True)
 
     visualtester.visualize(adapt_dataloader_test, save_path=adapt_folder+"results_ood.png");
+
+
+#%%
+## After training, copy nohup.log to the runfolder
+try:
+    __IPYTHON__ ## in a jupyter notebook
+except NameError:
+    os.system(f"cp nohup.log {run_folder}")

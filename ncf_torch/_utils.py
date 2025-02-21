@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from functorch import jvp
+from torch.func import jvp
 from torch import vmap
 import torch.nn.functional as F
 
@@ -32,7 +32,6 @@ def seconds_to_hours(seconds):
 
 ## Wrapper function for matplotlib and seaborn
 def sbplot(*args, ax=None, figsize=(6,3.5), x_label=None, y_label=None, title=None, x_scale='linear', y_scale='linear', xlim=None, ylim=None, **kwargs):
-
     if ax==None:
         _, ax = plt.subplots(1, 1, figsize=figsize)
     # sns.despine(ax=ax)
