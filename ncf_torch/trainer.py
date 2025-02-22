@@ -77,7 +77,7 @@ class Trainer:
 
         for epoch in range(nb_epochs):
             nb_batches = 0
-            loss_sum = torch.zeros(1)
+            loss_sum = np.zeros(1)
             nb_steps_sum = 0
 
             for i, batch in enumerate(self.dataloader):
@@ -118,7 +118,7 @@ class Trainer:
                 self.toggle_grad("node", True)
 
 
-                loss_sum += torch.Tensor([loss])
+                loss_sum += np.array([loss.detach().cpu().numpy()])
                 nb_steps_sum += nb_steps_
 
                 nb_batches += 1
@@ -132,11 +132,18 @@ class Trainer:
             if epoch%print_error_every==0 or epoch<=3 or epoch==nb_epochs-1:
 
                 if val_dataloader is not None:
-                    self.learner.neuralode = node
-                    self.learner.contexts = contexts
-                    ind_crit,_ = tester.test(val_dataloader, int_cutoff=1.0, criterion=val_criterion, verbose=False)
+                    ind_crit, _ = tester.test(val_dataloader, int_cutoff=1.0, criterion=val_criterion, verbose=False)
                     val_losses.append(np.array([epoch, ind_crit]))
                     print(f"    Epoch: {epoch:-5d}      LossTrajs: {loss_epoch[0]:-.8f}     ContextsNorm: {torch.mean(term2):-.8f}     ValIndCrit: {ind_crit:-.8f}", flush=True)
+
+                    self.learner.save_learner(save_path+f"checkpoints/", suffix=epoch)
+
+                    ## Save trainer if the validation criterion is the best
+                    if epoch>0 and ind_crit<np.min(val_losses, axis=1)[1]:
+                        print(f"        ✔️ Saving the model at epoch {epoch} with the best validation criterion ...")
+                        self.save_trainer(save_path)
+                        self.learner.save_learner(save_path)
+
                 else:
                     print(f"    Epoch: {epoch:-5d}      LossTrajs: {loss_epoch[0]:-.8f}     ContextsNorm: {torch.mean(term2):-.8f}", flush=True)
 
@@ -144,10 +151,10 @@ class Trainer:
         time_in_hmsecs = seconds_to_hours(wall_time)
         print("\nTotal gradient descent training time: %d hours %d mins %d secs" %time_in_hmsecs)
 
-        self.losses_node.append(torch.vstack(losses))
-        self.losses_ctx.append(torch.vstack(losses))        ## Same things
+        self.losses_node.append(np.vstack(losses))
+        self.losses_ctx.append(np.vstack(losses))
         self.nb_steps_node.append(np.array(nb_steps))
-        self.nb_steps_ctx.append(np.array(nb_steps))     ## Same things
+        self.nb_steps_ctx.append(np.array(nb_steps))
 
         if val_dataloader is not None:
             self.val_losses.append(np.vstack(val_losses))
@@ -157,7 +164,6 @@ class Trainer:
 
         if save_path:
             self.save_trainer(save_path)
-
 
 
 
@@ -297,31 +303,33 @@ class Trainer:
         assert path[-1] == "/", "ERROR: The path must end with /"
         # print(f"\nSaving model and results into {path} folder ...\n")
 
-        np.savez(path+"train_histories.npz",
-                 losses_node=torch.vstack(self.losses_node), 
-                 losses_ctx=torch.vstack(self.losses_ctx), 
-                 nb_steps_node=np.concatenate(self.nb_steps_node), 
-                 nb_steps_ctx=np.concatenate(self.nb_steps_ctx))
-        
-        if hasattr(self, 'val_losses'):
+        if len(self.losses_node) > 0:
+            np.savez(path+"train_histories.npz",
+                    losses_node=np.vstack(self.losses_node), 
+                    losses_ctx=np.vstack(self.losses_ctx), 
+                    nb_steps_node=np.concatenate(self.nb_steps_node), 
+                    nb_steps_ctx=np.concatenate(self.nb_steps_ctx))
+            
+        if hasattr(self, 'val_losses') and len(self.val_losses) > 0:
             np.save(path+"val_losses.npy", np.vstack(self.val_losses))
 
         pickle.dump(self.opt_node.state_dict(), open(path+"opt_state_node.pkl", "wb"))
         pickle.dump(self.opt_ctx.state_dict(), open(path+"opt_state_ctx.pkl", "wb"))
 
-        if not hasattr(self, 'val_losses'):
-            self.learner.save_learner(path)
+        # if not hasattr(self, 'val_losses'):
+        # self.learner.save_learner(path)
 
 
     def restore_trainer(self, path):
         assert path[-1] == "/", "ERROR: Invalidn parovided. The path must end with /"
         print(f"\nNo training, loading model and results from {path} folder ...\n")
 
-        histories = np.load(path+"train_histories.npz")
-        self.losses_node = [histories['losses_node']]
-        self.losses_ctx = [histories['losses_ctx']]
-        self.nb_steps_node = [histories['nb_steps_node']]
-        self.nb_steps_ctx = [histories['nb_steps_ctx']]
+        if os.path.exists(path+"train_histories.npz"):
+            histories = np.load(path+"train_histories.npz")
+            self.losses_node = [histories['losses_node']]
+            self.losses_ctx = [histories['losses_ctx']]
+            self.nb_steps_node = [histories['nb_steps_node']]
+            self.nb_steps_ctx = [histories['nb_steps_ctx']]
 
         if os.path.exists(path+"val_losses.npy"):
             self.val_losses = [np.load(path+"val_losses.npy")]

@@ -15,6 +15,7 @@ class Learner:
         self.loss_fn_env = loss_fn_env
 
 
+    # @torch.compile()
     def loss_fn(self, batch, training=True):
         Xs, t_eval = batch
 
@@ -29,7 +30,6 @@ class Learner:
         all_term2 = []
         for e in range(Xs.shape[0]):
             loss, (nb_steps, term1, term2) = self.loss_fn_env(self.neuralode, Xs[e, :, :, :], t_eval, contexts.params[e], contexts.params)
-            # loss, (nb_steps, term1, term2) = self.loss_fn_env(self.neuralode, Xs[e, :, :, :], t_eval, contexts[e], contexts)
             all_loss.append(loss)
             all_nb_steps.append(nb_steps)
             all_term1.append(term1)
@@ -49,19 +49,26 @@ class Learner:
 
 
 
-    def save_learner(self, path):
+    def save_learner(self, path, suffix=None):
         assert path[-1] == "/", "ERROR: Invalidn parovided. The path must end with /"
-
-        torch.save(self.neuralode, path+"neuralode.pth")
-        torch.save(self.contexts, path+"contexts.pth")
-        torch.save(self.init_ctx_params, path+"contexts_init.pth")
+        
+        if suffix is not None:
+            torch.save(self.neuralode, path+f"model_{suffix}.pth")
+            torch.save(self.contexts, path+f"contexts_{suffix}.pth")
+            # torch.save(self.init_ctx_params, path+f"contexts_init_{suffix}.pth")
+        else:
+            torch.save(self.neuralode, path+"model.pth")
+            torch.save(self.contexts, path+"contexts.pth")
+            torch.save(self.init_ctx_params, path+"contexts_init.pth")
 
     def load_learner(self, path):
         assert path[-1] == "/", "ERROR: Invalidn parovided. The path must end with /"
 
-        self.neuralode = torch.load(path+"neuralode.pth")
-        self.contexts = torch.load(path+"contexts.pth")
-        self.init_ctx_params = torch.load(path+"contexts_init.pth")
+        self.neuralode = torch.load(path+"model.pth", weights_only=False)
+        self.contexts = torch.load(path+"contexts.pth", weights_only=False)
+
+        if os.path.exists(path+"contexts_init.pth"):
+            self.init_ctx_params = torch.load(path+"contexts_init.pth", weights_only=False)
 
 
 class ContextParams(nn.Module):

@@ -4,9 +4,12 @@
 
 ## Import all the necessary libraries
 from ncf_torch import *
+# import torch._dynamo
+# torch._dynamo.config.suppress_errors = True
+# from torch.autograd.functional import jvp
 
 ## Set the torch seed for reproducibility
-seed = 2025
+seed = 2026
 torch.manual_seed(seed)
 np.random.seed(seed)
 
@@ -18,8 +21,8 @@ context_pool_size = 1               ## Number of neighboring contexts j to use f
 ## General training hyperparameters ##
 print_error_every = 10              ## Print the error every n epochs
 ivp_args = {"rtol":1e-3, "atol":1e-6, "method":"rk4"} ## Arguments for the integrator
-learning_rates = (1e-3, 1e-3)      ## Learning rates for the weights and the contexts
-nb_epochs = 2000                       ## Number of epochs
+learning_rates = (3e-4, 3e-4)      ## Learning rates for the weights and the contexts
+nb_epochs = 10                       ## Number of epochs
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 run_folder = None                   ## Folder to save the results of the run
@@ -29,7 +32,7 @@ train = True                       ## Train the model, or load a pre-trained mod
 adapt_test = True                   ## Test the model on an adaptation datase t
 adapt_restore = False               ## Restore a trained adaptation model
 
-nb_epochs_adapt = 2000              ## Number of epochs to adapt
+nb_epochs_adapt = 20              ## Number of epochs to adapt
 
 
 #%%
@@ -46,6 +49,9 @@ if train == True:
     # run_folder = './runs/19022025-103059-Test/'
     print("Run folder created successfuly:", run_folder)
 
+    # Make the checkpoint folder
+    os.mkdir(run_folder+"checkpoints")
+
     # Save this main and the dataset gneration scripts in that folder
     script_name = os.path.basename(__file__)
     os.system(f"cp {script_name} {run_folder}")
@@ -54,15 +60,17 @@ if train == True:
     os.system(f"cp -r ../../ncf_torch {run_folder}")
     print("Completed copied scripts ")
 
+    data_folder = "./data/"
+
 else:
+    run_folder = "./"
+    data_folder = "../../data/"
     print("No training. Loading data and results from:", run_folder)
 
 ## Create a folder for the adaptation results
 adapt_folder = run_folder+"adapt/"
 if not os.path.exists(adapt_folder):
     os.mkdir(adapt_folder)
-
-data_folder = "./data/"
 
 #%%
 
@@ -137,30 +145,6 @@ class NeuralNet(nn.Module):
 
         return y
 
-    # def forward_nograd(self, t, y, ctx):
-    #     # print('==>',self.layers_context[0].weight.requires_grad)
-    #     for i, layer in enumerate(self.layers_context):
-    #         ctx = layer(ctx)
-    #         if i != len(self.layers_context)-1:
-    #             ctx = F.softplus(ctx)
-
-    #     for i, layer in enumerate(self.layers_data):
-    #         y = layer(y)
-    #         if i != len(self.layers_data)-1:
-    #             y = F.softplus(y)
-
-    #     ctx = torch.unsqueeze(ctx, 0)
-    #     ctx = torch.broadcast_to(ctx, y.shape)
-
-    #     y = torch.concatenate([y, ctx], dim=1)
-    #     for i, layer in enumerate(self.layers_shared):
-    #         y = layer(y)
-    #         if i != len(self.layers_shared)-1:
-    #             y = F.softplus(y)
-
-    #     return y
-
-
 ### Define the Taylor expantion about the context vector ###
 class SelfModulatedVectorField(nn.Module):
     neuralnet: nn.Module
@@ -171,8 +155,12 @@ class SelfModulatedVectorField(nn.Module):
         self.neuralnet = neuralnet
         self.taylor_order = taylor_order
 
+    # @torch.compile
     def __call__(self, t, x, ctxs):
         ctx, ctx_ = ctxs
+
+        ##Print whether the neuralnet requires grad or not
+        # print('==>',self.neuralnet.layers_context[0].weight.requires_grad)
 
         vf = lambda xi: self.neuralnet(t, x, xi)
         if self.taylor_order == 0:
@@ -180,14 +168,16 @@ class SelfModulatedVectorField(nn.Module):
 
         else:
             gradvf = lambda xi_: jvp(vf, (xi_,), (ctx-xi_,))[1]
+            # gradvf = torch.compile(lambda xi_: jvp(vf, (xi_,), (ctx-xi_,))[1])
 
             if self.taylor_order == 1:
                 return vf(ctx_) + 1.0*gradvf(ctx_)
-            
+                # return vf(ctx_) + 1.0*jvp(vf, (ctx_,), (ctx-ctx_,))[1]
+
             elif self.taylor_order == 2:
                 scd_order_term = jvp(gradvf, (ctx_,), (ctx-ctx_,))[1]
                 return vf(ctx_) + 1.5*gradvf(ctx_) + 0.5*scd_order_term
-            
+
             else:
                 raise ValueError("Only taylor orders 0, 1, 2 are currently supported.")
 
@@ -201,6 +191,7 @@ print("\nTotal number of shared parameters in the neural ODE model:", sum(p.nume
 print("Total number of environment-specific parameters in the contexts:", sum(p.numel() for p in contexts.parameters()), "\n")
 
 ## Define a custom loss function
+# @torch.compile
 def loss_fn_env(model, trajs, t_eval, ctx, all_ctx_s):
 
     ## Define the context pool using the Random-All strategy
