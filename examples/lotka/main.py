@@ -9,20 +9,20 @@ from ncf_torch import *
 # from torch.autograd.functional import jvp
 
 ## Set the torch seed for reproducibility
-seed = 2026
+seed = 35
 torch.manual_seed(seed)
 np.random.seed(seed)
 
 ## NCF main hyperparameters ##
 context_size = 2                 ## Size of the context vector
 taylor_order = 0
-context_pool_size = 1               ## Number of neighboring contexts j to use for a flow in env e
+context_pool_size = 1 if taylor_order==0 else 3               ## Number of neighboring contexts j to use for a flow in env e
 
 ## General training hyperparameters ##
 print_error_every = 10              ## Print the error every n epochs
 ivp_args = {"rtol":1e-3, "atol":1e-6, "method":"rk4"} ## Arguments for the integrator
-learning_rates = (3e-4, 3e-4)      ## Learning rates for the weights and the contexts
-nb_epochs = 10                       ## Number of epochs
+learning_rates = (1e-3, 1e-3)      ## Learning rates for the weights and the contexts
+nb_epochs = 2000                       ## Number of epochs
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 run_folder = None                   ## Folder to save the results of the run
@@ -32,7 +32,7 @@ train = True                       ## Train the model, or load a pre-trained mod
 adapt_test = True                   ## Test the model on an adaptation datase t
 adapt_restore = False               ## Restore a trained adaptation model
 
-nb_epochs_adapt = 20              ## Number of epochs to adapt
+nb_epochs_adapt = 2000              ## Number of epochs to adapt
 
 
 #%%

@@ -139,7 +139,7 @@ class Trainer:
                     self.learner.save_learner(save_path+f"checkpoints/", suffix=epoch)
 
                     ## Save trainer if the validation criterion is the best
-                    if epoch>0 and ind_crit<np.min(val_losses, axis=1)[1]:
+                    if epoch>0 and ind_crit<=np.min(np.vstack(val_losses)[:, 1]):
                         print(f"        ✔️ Saving the model at epoch {epoch} with the best validation criterion ...")
                         self.save_trainer(save_path)
                         self.learner.save_learner(save_path)
