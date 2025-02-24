@@ -1,13 +1,9 @@
 [project]
-name = "nodax"
-description = "AnonymousName"
+name = "ncf_torch"
+description = "Neural Context Flows for Meta-Learning of Dynamical Systems"
 version = "0.0.1"
 dependencies = [
-    "jax >= 0.3.4",
-    "equinox >= 0.9.2",
-    "optax >= 0.1.1",
-    "flax",
-    "jraph",
+    "torch >= 2.2.0",
     "pyvis==0.3.1",
     "pytest",
 ]
@@ -19,4 +15,4 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = ["nodax"]
+py-modules = ["ncf_torch"]
