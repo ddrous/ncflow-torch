@@ -47,9 +47,9 @@ plt.title("Train Losses")
 plt.yscale("log")
 plt.ylim(4e-4, 5)
 plt.legend()
-plt.show()
+plt.draw()
 
-plt.savefig("train_loss.png", transparent=True, dpi=300)
+plt.savefig("train_loss.png", transparent=False, dpi=300)
 
 
 #%%
@@ -80,9 +80,9 @@ plt.title("Validation Losses")
 plt.yscale("log")
 plt.ylim(4e-4, 5)
 plt.legend()
-plt.show()
+plt.draw()
 
-plt.savefig("val_loss.png", transparent=True, dpi=300)
+plt.savefig("val_loss.png", transparent=False, dpi=300)
 
 
 #%%
@@ -130,9 +130,9 @@ plt.title("Adaptation Losses")
 plt.yscale("log")
 # plt.ylim(4e-4, 5)
 plt.legend()
-plt.show()
+plt.draw()
 
-plt.savefig("adapt_loss.png", transparent=True, dpi=300)
+plt.savefig("adapt_loss.png", transparent=False, dpi=300)
 
 
 
@@ -169,7 +169,7 @@ bplot = ax.boxplot(fruit_weights,
 for patch, color in zip(bplot['boxes'], colors):
     patch.set_facecolor(color)
 
-plt.show()
+plt.draw()
 
 
 
@@ -221,6 +221,6 @@ plt.xticks([1.25, 2.25, 3.25, 4.25], ["Env 1", "Env 2", "Env 3", "Env 4"], fonts
 plt.yscale("log")
 
 plt.title("Per-Environment OOD MSEs")
-plt.show()
+plt.draw()
 
-plt.savefig("ood_mse.png", transparent=True, dpi=300)
+plt.savefig("ood_mse.png", transparent=False, dpi=300)
