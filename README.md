@@ -4,8 +4,8 @@
 PyTorch implementation of [Neural Context Flows for Meta-Learning of Dynamical Systems](https://arxiv.org/abs/2405.02154), accepted at ICLR 2025.
 > [!WARNING]  
 > This implementation is not optimal ! We observed huge slowdowns when performing contextual self-modulation, mostly related to the following:
-    - forward-mode Jacobian-Vector Product (JVP) primitive to facilitate the Taylor expansions
-    - functions transformations `torch.vmap` and `torch.compile` proving too restrictive
+    (1) forward-mode Jacobian-Vector Product (JVP) primitive to facilitate the Taylor expansions;
+    (2) functions transformations like `torch.vmap` and `torch.compile` proving too restrictive.
     We are grateful for any pull-request addressing these issues. In the meantime, we recommend the optimized JAX implementation available [at this link](https://github.com/ddrous/ncflow).
 
 <p align="center">
@@ -24,7 +24,7 @@ NCF is powered by the __contextual self-modulation__ regularization mechanism. T
 The NCF package is built around 4 extensible modules: 
 - a __DataLoader__: to load the dynamics datasets
 - a __Learner__: a model, a context and the loss function
-- A __Trainer__: the training and adaptation algorithms
+- a __Trainer__: the training and adaptation algorithms
 - a __VisualTester__: to test and visualize the results
 
 ## Getting Started
@@ -40,7 +40,7 @@ To run an experiment, follow the steps below:
 The same `main.py` in `examples/lotka` can be used (relatively) unchanged for other problems.
 
 ## ToDos:
-- [ ] Fix the slow self-modulation issues
+- [ ] Fix the slow self-modulation slowdown issues
 - [ ] Test the installation in neutral conda environments
 
 If you use this work, please cite the corresponding paper:
